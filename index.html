@@ -1,0 +1,268 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fun Math Game for Kids</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f8ff;
+            overflow: hidden;
+        }
+        #game-container {
+            text-align: center;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            max-width: 400px;
+            width: 90%;
+        }
+        h1 {
+            color: #ff4500;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        #question {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .option {
+            background-color: #7fffd4;
+            padding: 15px;
+            margin: 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: background-color 0.3s;
+            display: inline-block;
+            width: 80px;
+        }
+        .option:hover {
+            background-color: #40e0d0;
+        }
+        #feedback {
+            font-size: 20px;
+            margin-top: 20px;
+            color: #ff69b4;
+        }
+        #score {
+            font-size: 18px;
+            color: #4682b4;
+            margin-top: 10px;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="fireworks"></canvas>
+    <div id="game-container">
+        <h1>Math Adventure!</h1>
+        <div id="question"></div>
+        <div id="options"></div>
+        <div id="feedback"></div>
+        <div id="score">Score: 0</div>
+    </div>
+
+    <script>
+        const questionEl = document.getElementById('question');
+        const optionsEl = document.getElementById('options');
+        const feedbackEl = document.getElementById('feedback');
+        const scoreEl = document.getElementById('score');
+        let score = 0;
+        let correctAnswer;
+        let wrongAttempts = 0;
+        let animationFrameId = null;
+
+        function generateQuestion() {
+            const num1 = Math.floor(Math.random() * 10) + 1;
+            const num2 = Math.floor(Math.random() * 10) + 1;
+            const operation = Math.random() < 0.5 ? '+' : '-';
+            
+            if (operation === '-') {
+                const temp = Math.max(num1, num2);
+                const temp2 = Math.min(num1, num2);
+                questionEl.textContent = `${temp} - ${temp2} = ?`;
+                correctAnswer = temp - temp2;
+            } else {
+                questionEl.textContent = `${num1} + ${num2} = ?`;
+                correctAnswer = num1 + num2;
+            }
+
+            const answers = [correctAnswer];
+            while (answers.length < 4) {
+                const wrong = correctAnswer + Math.floor(Math.random() * 6) - 3;
+                if (wrong !== correctAnswer && wrong >= 0 && !answers.includes(wrong)) {
+                    answers.push(wrong);
+                }
+            }
+            answers.sort(() => Math.random() - 0.5);
+
+            optionsEl.innerHTML = '';
+            answers.forEach(answer => {
+                const button = document.createElement('div');
+                button.className = 'option';
+                button.textContent = answer;
+                button.onclick = () => checkAnswer(answer);
+                optionsEl.appendChild(button);
+            });
+            wrongAttempts = 0;
+        }
+
+        function checkAnswer(selected) {
+            if (selected === correctAnswer) {
+                feedbackEl.textContent = 'Yay! Correct!';
+                score++;
+                scoreEl.textContent = `Score: ${score}`;
+                triggerFireworks();
+                setTimeout(() => {
+                    feedbackEl.textContent = '';
+                    generateQuestion();
+                }, 1000);
+            } else {
+                wrongAttempts++;
+                feedbackEl.textContent = 'Oops! Try again!';
+                fireworkParticles.length = 0; // Stop fireworks on wrong answer
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                setTimeout(() => {
+                    feedbackEl.textContent = '';
+                }, 1000);
+            }
+        }
+
+        // Fireworks effect
+        const canvas = document.getElementById('fireworks');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const fireworkParticles = [];
+        class FireworkParticle {
+            constructor() {
+                this.x = canvas.width / 2; // Start at center
+                this.y = canvas.height / 2;
+                const angle = Math.random() * Math.PI * 2; // Random direction
+                const speed = Math.random() * 8 + 4; // Speed for large burst
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.size = Math.random() * 5 + 2; // Small particles
+                this.opacity = 1;
+                this.color = `hsl(${Math.random() * 360}, 80%, 60%)`;
+                this.lifespan = 90; // Lifespan for 1.5s duration
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.opacity -= 0.011; // Fade to match lifespan
+                this.lifespan--;
+                if (this.opacity < 0) this.opacity = 0;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.globalAlpha = this.opacity;
+                ctx.fill();
+                ctx.globalAlpha = 1; // Reset alpha
+            }
+        }
+
+        function triggerFireworks() {
+            // Clear any existing animation
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            fireworkParticles.length = 0;
+            // Fewer particles for performance
+            for (let i = 0; i < 40; i++) { // Fixed syntax error
+                fireworkParticles.push(new FireworkParticle());
+            }
+            // Cap frame rate at 30 FPS
+            const targetFrameTime = 1000 / 30; // ~33ms per frame
+            let lastFrameTime = performance.now();
+            const startTime = lastFrameTime;
+            function animateFireworks(timestamp) {
+                if (timestamp - lastFrameTime < targetFrameTime) {
+                    animationFrameId = requestAnimationFrame(animateFireworks);
+                    return;
+                }
+                lastFrameTime = timestamp;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                fireworkParticles.forEach((particle, index) => {
+                    particle.update();
+                    particle.draw();
+                    if (particle.lifespan <= 0) {
+                        fireworkParticles.splice(index, 1); // Remove faded particles
+                    }
+                });
+                if (timestamp - startTime < 1500) { // Run for 1.5 seconds
+                    animationFrameId = requestAnimationFrame(animateFireworks);
+                } else {
+                    fireworkParticles.length = 0; // Clear particles
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    animationFrameId = null;
+                }
+            }
+            animationFrameId = requestAnimationFrame(animateFireworks);
+        }
+
+        // Start the game
+        generateQuestion();
+    </script>
+</body>
+</html>
